@@ -1,4 +1,4 @@
-const {url, time, SCKEY, text, desp} = require('./config')
+const {url, SCKEY, text, desp} = require('./config')
 const axios = require('axios')
 const puppeteer = require('puppeteer');
 /* 
@@ -12,27 +12,28 @@ const puppeteer = require('puppeteer');
 const initMonitor =  async () => {
   const browser = await puppeteer.launch({args: ['--no-sandbox', '--disable-setuid-sandbox']})
   const page = await browser.newPage()
-  await page.goto(url)
+  interval(page, browser)
+}
 
-  const interval = setInterval(async () => {
-    const className = await page.$eval('.Z_name .status', el => el.className)
-    if (className.indexOf('iconicon_release') > -1) {
-      console.log('房源待释放')
-    } else {
-      console.log('房源状态变更')
-      wechatServerCall()
-      overMonitor(interval, browser)
-    }
-  }, time)
+const interval = async (page, browser, num = 0) => {
+  if (num) {
+    await page.reload({waitUntil: 'networkidle0'})
+  } else {
+    await page.goto(url, {waitUntil: 'networkidle0'})
+  }
+  const className = await page.$eval('.Z_name .status', el => el.className)
+  if (className && className.indexOf('iconicon_release') === -1) {
+    console.log('房源状态变更')
+    wechatServerCall()
+    await browser.close()
+  } else {
+    console.log(`查询第${num + 1}次: 房源待释放`)
+    interval(page, browser, num + 1)
+  }
 }
 
 const wechatServerCall = async () => {
   await axios.get(`https://sc.ftqq.com/${SCKEY}.send?text=${encodeURIComponent(text)}&desp=${encodeURIComponent(desp)}`)
-}
-
-const overMonitor = async (interval, browser) => {
-  clearInterval(interval)
-  await browser.close()
 }
 
 initMonitor()
